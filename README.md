@@ -7,6 +7,64 @@ https://gitee.com/py2010/example/
 
 
 ```
+
+'''
+# views使用示例:
+
+class XxxMixin(views.ModelMixin):
+    model = models.Xxx
+
+
+class XxxList(XxxMixin, views.MyListView):
+    list_fields = ['pk', 'm2o__o2o__pk', 'x2o__x2m', '反向外键/正反m2m']
+    filter_fields = ['field1', 'x2o__field3']
+
+
+class XxxDetail(XxxMixin, views.MyDetailView):
+    1
+
+
+class XxxForm(XxxMixin):
+    fields = '__all__'
+    # form_class = forms.XxxForm
+
+
+class XxxCreate(XxxForm, CreateView):
+    # template_name_suffix = '_add'
+    1
+
+
+class XxxUpdate(XxxForm, UpdateView):
+    1
+
+
+class XxxDelete(XxxMixin, views.MyDeleteView):
+    1
+
+
+# URL人工配置示例
+
+from django.conf.urls import url
+from xxx_app_label import views
+
+urlpatterns = [
+
+    url(r'^xxx/create/$', views.XxxAdd.as_view(), name='xxx_create'),
+    url(r'^xxx/delete/$', views.XxxDelete.as_view(), name='xxx_delete'),
+
+    url(r'^xxx/(?P<pk>\d+)/update/$', views.XxxUpdate.as_view(), name='xxx_update'),
+
+    url(r'^xxx/(?P<pk>\d+)/$', views.XxxDetail.as_view(), name='xxx_detail'),
+    url(r'^xxx/$', views.XxxList.as_view(), name='xxx_list'),
+
+]
+
+# 自动生成URL配置及视图示例, 参考 generic.routers.MyRouter
+
+'''
+
+
+
 '''
 自动生成url及视图, 使用方法:
 
@@ -58,62 +116,6 @@ urlpatterns = [
     ...
 ]
 add_router_for_all_models()
-
-'''
-
-
-'''
-# 使用示例:
-
-class XxxMixin(views.ModelMixin):
-    model = models.Xxx
-
-
-class XxxList(XxxMixin, views.MyListView):
-    list_fields = ['pk', 'm2o__o2o__pk', 'x2o__x2m', '反向外键/正反m2m']
-    filter_fields = ['field1', 'x2o__field3']
-
-
-class XxxDetail(XxxMixin, views.MyDetailView):
-    1
-
-
-class XxxForm(XxxMixin):
-    fields = '__all__'
-    # form_class = forms.XxxForm
-
-
-class XxxCreate(XxxForm, CreateView):
-    # template_name_suffix = '_add'
-    1
-
-
-class XxxUpdate(XxxForm, UpdateView):
-    1
-
-
-class XxxDelete(XxxMixin, views.MyDeleteView):
-    1
-
-
-# URL人工配置示例
-
-from django.conf.urls import url
-from xxx_app_label import views
-
-urlpatterns = [
-
-    url(r'^xxx/create/$', views.XxxAdd.as_view(), name='xxx_create'),
-    url(r'^xxx/delete/$', views.XxxDelete.as_view(), name='xxx_delete'),
-
-    url(r'^xxx/(?P<pk>\d+)/update/$', views.XxxUpdate.as_view(), name='xxx_update'),
-
-    url(r'^xxx/(?P<pk>\d+)/$', views.XxxDetail.as_view(), name='xxx_detail'),
-    url(r'^xxx/$', views.XxxList.as_view(), name='xxx_list'),
-
-]
-
-# 自动生成URL配置及视图示例, 参考 generic.routers.MyRouter
 
 '''
 
