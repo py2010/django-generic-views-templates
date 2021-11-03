@@ -1,6 +1,5 @@
-# django-config
-django app配置管理, 环境变量/settings/conf.py优先级控制  
-业务程序从各自app/conf.py读取配置, 无需考虑优先级, 统一由conf配置文件来定.
+# django-generic-views-templates
+django通用视图模板 (low-code)
 
 示例
 https://github.com/py2010/example/
