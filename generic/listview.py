@@ -8,6 +8,7 @@ from django.views import generic
 
 from django.db.models.fields import reverse_related
 from django.db.models.fields import related
+from django.urls import reverse_lazy
 
 from . import conf
 
@@ -31,7 +32,8 @@ def get_field_from_meta(_meta, field_name):
                 else:
                     '反查字段有设置 related_name, 无需加后缀"_set"或其它巧合的情况, 字段返回None'
 
-        logger.debug(f'字段获取失败: {e}')
+        # logger.debug(f'字段获取失败: {e}')
+        # # raise
 
 
 class ListView(generic.ListView):
@@ -52,6 +54,41 @@ class ListView(generic.ListView):
     '''
     # template_name = 'generic/_list.html'
     list_fields = []  # 列表页显示的字段
+
+    def get_context_data(self, *args, **kwargs):
+        # 根据用户权限，对应显示增删改查的链接/按钮
+        action_perm = {
+            # action: 对应的action权限码
+            'create': 'add',
+            'delete': 'delete',
+            'update': 'change',
+            'detail': 'view',
+            # 'list': 'view',
+        }
+        app_label = self.model_meta.app_label
+        model_name = self.model_meta.model_name
+
+        model_perms = {
+            # action: 操作权限
+            action: self.request.user.has_perm(f'{app_label}.{perm}_{model_name}')
+            for action, perm in action_perm.items()
+        }
+
+        # list_view_name = self.request.resolver_match.view_name  # app_name可能和meta.app_label不同
+        # view_name = list_view_name[:-5]
+
+        # for action, perm in model_perms.items():
+        #     if perm:
+        #         # 有权限，获取视图url
+        #         try:
+        #             model_perms[action] = reverse_lazy(f'{view_name}_{action}')
+        #         except Exception:
+        #             '未配置action路径，忽略'
+
+        # import ipdb; ipdb.set_trace()  # breakpoint f7da10f4 //
+
+        context_data = super().get_context_data(model_perms=model_perms, *args, **kwargs)
+        return context_data
 
     def get_queryset(self):
         model = self.model or self.queryset.model
@@ -116,8 +153,6 @@ class QueryListView(ListView):
     filter_orm = conf.LISTVIEW_FILTER_ORM  # 是否开启ORM过滤功能
 
     def get_queryset(self):
-        self.js_table()
-
         qs = super().get_queryset()
         if self.filter_orm:
             qs = self.get_queryset_orm(qs, True)
@@ -192,20 +227,41 @@ class PageListView(QueryListView):
     page_kwarg = conf.LISTVIEW_PAGE_KWARG  # url页码参数名称
     page_size_kwarg = conf.LISTVIEW_PAGE_SIZE_KWARG  # url参数PageSize名称, 类似page_kwarg
     page_size_list = conf.LISTVIEW_PAGE_SIZE_LIST  # 前端PageSize选择列表
+    js_table_data = None  # 开启DataTable.js前端表格分页
 
-    def js_table(self):
-        # 前端DataTable表格, 当后端分页/搜索未开启时, 使用前端js分页/搜索过滤
-        self.js_table_data = not (self.paginate_by or self.filter_fields)
+    def get_context_data(self, *args, **kwargs):
 
-    def get(self, request, *a, **k):
-        pagesize = self.request.GET.get(self.page_size_kwarg)
+        pagesize = self.request.GET.get(self.page_size_kwarg)  # 每页显示条数
         try:
             self.paginate_by = min(100, int(pagesize))  # 限制最大100条
         except Exception:
             pass
-        res = super().get(request, *a, **k)
-        res.context_data['url_args'] = [f'{arg}={val}' for arg, val in request.GET.items() if arg != self.page_kwarg]
-        return res
+
+        context_data = super().get_context_data(*args, **kwargs)
+        if context_data.get('is_paginated'):
+            # 生成url参数，用于各分页链接，不包含page=xx参数本身
+            context_data['url_args'] = [
+                f'{arg}={val}' for arg, val in self.request.GET.items() if arg != self.page_kwarg
+            ]
+            context_data['page_range'] = self.get_page_range(context_data['page_obj'])
+
+        elif self.js_table_data is None:
+            # 前端js分页，用户未指定True/False，且后端分页/搜索都未开启时, 开启前端js分页/搜索过滤
+            self.js_table_data = not self.filter_fields
+        return context_data
+
+    def get_page_range(self, page_obj):
+        # 大表分页时，优化页码显示
+        page_range = page_obj.paginator.page_range
+        num_pages = page_obj.paginator.num_pages
+        if num_pages > 10:
+            # 页数太多时不全显示，只显示当前页附近页码
+            PAGES = 3  # 附近页数
+            page_range_1 = max(1, page_obj.number - PAGES)  # 显示的起始页码
+            page_range_2 = min(num_pages + 1, page_obj.number + 1 + PAGES)  # 显示的结束页码
+            page_range = range(page_range_1, page_range_2)
+        # print(page_range, 333333333333)
+        return page_range
 
 
 class SqlListView(PageListView):
@@ -277,7 +333,7 @@ class SqlListView(PageListView):
             queryset = queryset.select_related(*sr_fields)
         if pr_fields:
             queryset = queryset.prefetch_related(*pr_fields)
-        # self.add_only_fields(queryset, onlys)
+        self.add_only_fields(queryset, onlys)
         return queryset
 
     def add_only_fields(self, queryset, field_names=[]):
@@ -327,7 +383,8 @@ class VirtualRelation:
         两个Model如果有实际的关联关系, 也可当虚拟关联来处理, attr和外键字段同名时, 注意obj1.save()
         o2o o2m m2o 虚拟关联处理一次即可, m2m的关系, 对应三个表, 虚拟关联需处理二次.
 
-        rel_field: 在业务上有关联关系的字段名 (DB结构和Model实际不一定有<外键>关联关系)
+        rel_field: 在业务上有关联关系的字段名, 为空表示主键, 这种情形为o2o扩展表,
+                   两表都是通过主键数据进行关联, 表结构上无正反方向.
         to_field: 相当于 model.ForeignKey 配置的 "to_field"  (obj1.rel_field_id 数据值等于 obj2.to_field)
         attr: 虚拟关系联接名, 尽量不能与obj1本身的方法/属性重名.
         reverse: 业务关联正反方向
@@ -336,44 +393,67 @@ class VirtualRelation:
 
         返回obj1列表, 不允许后续再进行叠加过滤等qs操作, 以免obj2关联关系丢失
         '''
+
         obj_list1 = [obj1 for obj1 in qs1]  # qs._fetch_all()
+
+        o2m = True if rel_field and reverse else False  # 一对多
+        field1 = field2 = to_field
+        if o2m:
+            field2 = rel_field
+        else:
+            field1 = rel_field or to_field
+
+        qs2 = self.optimize_qs2(obj_list1, qs2, field1, field2)
         obj_list2 = [obj2 for obj2 in qs2]  # qs._fetch_all()
+
         if obj_list1 and obj_list2:
-            # 检查attr是否为model1的 x2o 或 o2x 字段
-            attr, IsForeignKeyField = self.check_attr(attr, obj_list1[0]._meta, obj_list2[0]._meta)
 
-            dict2 = {}
-            field1 = field2 = to_field
-            if rel_field:
-                if reverse:
-                    field2 = rel_field
-                    '''
-                    反向关联, 业务关系当成o2m关联来处理, 也就是一obj2对多obj2
-                    如果实际业务是每个obj1对应一个obj2, 也就是反向o2o,
-                    业务上类似反向外键, 只是对应的反向数据只有一条, 兼容
-                    不管对应一条还是多条数据, 模板中都需for迭代取.
-                    '''
-                    for obj2 in obj_list2:
-                        key2 = getattr(obj2, field2)
-                        if key2 in dict2:
-                            dict2[key2].append(obj2)
-                        else:
-                            dict2[key2] = [obj2]
-                else:
-                    field1 = rel_field
+            if o2m:
+                '''
+                反向关联, 业务关系当成o2m关联来处理, 也就是一obj1对多obj2
+                如果实际业务是每个obj1对应一个obj2, 也就是反向o2o,
+                业务上类似反向外键, 只是对应的反向数据只有一条, 兼容
+                不管对应一条还是多条数据, 模板中都需for迭代取.
+                '''
+                # field1 = to_field
+                # field2 = rel_field
+                dict2 = {}
+                for obj2 in obj_list2:
+                    key2 = getattr(obj2, field2)
+                    if key2 in dict2:
+                        dict2[key2].append(obj2)
+                    else:
+                        dict2[key2] = [obj2]
+            else:
+                # field1 = rel_field or to_field
+                # field2 = to_field
 
-            if not dict2:
                 # obj1与obj2 为x2o关联
                 dict2 = {getattr(obj2, field2): obj2 for obj2 in obj_list2}
+
+            # 检查attr是否为model1的 x2o 或 o2x 字段
+            attr, IsForeignKeyField = self.check_attr(attr, obj_list1[0]._meta, obj_list2[0]._meta)
 
             for obj1 in obj_list1:
                 key2 = getattr(obj1, field1)
                 obj2 = dict2.get(key2)
                 # if obj2:
-                if 1:
+                if 1:  # 为空也应setattr, 防止AttributeError (虽然模板不会raise)
                     self.set_attr(obj1, attr, obj2, IsForeignKeyField)
 
         return obj_list1
+
+    def optimize_qs2(self, qs1, qs2, field1, field2):
+        '''
+        优化查询， qs2过滤数据， 减少查询量
+        比如提供关联表qs2为所有数据 model2.objects.all()，而本表qs1不是全部数据(分页/查询等)，
+        qs2实际只有一小部分数据和qs1本表产生关联，则qs2没必要查出所有。
+        '''
+
+        if isinstance(qs2, models.query.QuerySet) and getattr(self, 'optimize_sql', None):
+            ids = [getattr(o, field1) for o in qs1]
+            qs2 = qs2.filter(**{f'{field2}__in': ids})
+        return qs2
 
     def virtual_m2m(self,
                     qs_1, qs_m, qs_2,
@@ -400,8 +480,10 @@ class VirtualRelation:
                         obj_m.attr_2 = obj_2
 
         '''
-        m_objs = self.virtual_join(qs_m, qs_2, rel_field=m_rel_field_2, attr=attr_2)
-        return self.virtual_join(qs_1, m_objs, rel_field=m_rel_field_1, reverse=True, attr=attr_m)
+        qs_m = self.optimize_qs2(qs_1, qs_m, field1=to_field_1, field2=m_rel_field_1 or 'pk')  # 过滤数据减少查询量
+
+        m_objs = self.virtual_join(qs_m, qs_2, attr=attr_2, rel_field=m_rel_field_2, to_field=to_field_2)
+        return self.virtual_join(qs_1, m_objs, attr=attr_m, rel_field=m_rel_field_1, to_field=to_field_1, reverse=True)
 
     def set_attr(self, obj1, attr, obj2, IsForeignKeyField=False):
         '''
@@ -410,7 +492,10 @@ class VirtualRelation:
         '''
         if IsForeignKeyField:
             logger.debug(f'obj1已含有名称为"{attr}"的关联字段, 不直接settattr')
-            obj1._state.fields_cache[attr] = obj2
+            if hasattr(obj1._state, 'fields_cache'):
+                obj1._state.fields_cache[attr] = obj2  # django 2.*
+            else:
+                setattr(obj1, f'_{attr}_cache', obj2)  # django 1.*
         else:
             setattr(obj1, attr, obj2)
 
@@ -444,38 +529,34 @@ class VirtualRelation:
         return attr, IsForeignKeyField
 
 
-class MyListView(VirtualRelation, SqlListView):
-    1
+# class VirtualRelationListView(VirtualRelation, SqlListView):
+#     '''
+#     比如跨库虚拟关联, self.model 与 rel_model 通过数据库字段rel_field建立虚拟关联
 
+#     virtual_relations = {
+#         # 虚拟关联
+#         'attr': {
+#             'rel_model': 'model2',
+#             'rel_field': 'db_field_name',
+#             'rel_type': 'ForeignKey',  # ForeignKey, OneToOneField, ManyToManyField
+#             'to_field': 'pk',
+#             'reverse': False,  # True:反向关联, False:正向关联
+#         }
+#     }
 
-class VirtualRelationListView(VirtualRelation, SqlListView):
-    '''
-    比如跨库虚拟关联, self.model 与 rel_model 通过数据库字段rel_field建立虚拟关联
+#     使虚拟关联无需自定义模板扩展新列, 方便按需展示各字段前后顺序.
+#     list_fields 中使用attr虚拟字段,  f'{attr}__关联表(model2)xx字段'
+#     '''
 
-    virtual_relations = {
-        # 虚拟关联
-        'attr': {
-            'rel_model': 'model2',
-            'rel_field': 'db_field_name',
-            'to_field': 'pk',
-            'rel_type': 'ForeignKey',  # ForeignKey, OneToOneField, ManyToManyField
-            'reverse': False,  # True:反向关联, False:正向关联
-        }
-    }
+#     virtual_relations = {}
 
-    使虚拟关联无需自定义模板扩展新列, 方便按需展示各字段前后顺序.
-    list_fields 中使用attr虚拟字段,  f'{attr}__关联表(model2)xx字段'
-    '''
+#     def init_fields(self, fields):
+#         # self.model._meta 加入虚拟字段attr, 仅用于列表页自动模板展示虚拟关联表数据.
+#         meta = self.model._meta
+#         for attr, info in virtual_relations.items():
+#             1
 
-    virtual_relations = {}
-
-    def init_fields(self, fields):
-        # self.model._meta 加入虚拟字段attr, 仅用于列表页自动模板展示虚拟关联表数据.
-        meta = self.model._meta
-        for attr, info in virtual_relations.items():
-            1
-
-        return super().init_fields(fields)
+#         return super().init_fields(fields)
 
 
 '''

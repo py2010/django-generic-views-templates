@@ -15,17 +15,87 @@ from django.contrib.admin import utils
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.html import format_html
 
-from . listview import MyListView
+from . import listview
 logger = logging.getLogger()
 
 __all__ = [
-    'View', 'CreateView', 'UpdateView',
-    'MyListView', 'MyDeleteView', 'MyDetailView', 'ModelMixin',
-    # 'lookup_val',
+    'ModelMixin', 'MyCreateView', 'MyDeleteView', 'MyUpdateView', 'MyListView', 'MyDetailView',
+    'lookup_val'
+
 ]
 
 
-class MyModelFormMixin(CreateView):
+class ModelMixin(LoginRequiredMixin, PermissionRequiredMixin):
+    '''
+    由于不想在MyListView/MyDetailView等视图中分别重写as_view(), 所以统一在当前重写.
+    多重继承时注意顺序, python中越往右为越远的基类祖先, 和VUE中继承顺序书写相反.
+    '''
+    model = None
+    queryset = None
+
+    # def __init__(self, **initkwargs):
+    #     super().__init__(**initkwargs)
+
+    @classmethod
+    def as_view(cls, *a, **k):
+        if not cls.model:
+            if not cls.queryset:
+                raise Exception(f'{cls}: Model View ??')
+            else:
+                cls.model = cls.queryset.model
+
+        ops = cls.model._meta
+        cls.model_meta = ops  # 由于模板中禁止访问"_"开头的属性.
+
+        if hasattr(cls, 'get_template_names'):
+            # 自动设置模板页
+            def get_template_names(self):
+                '''
+                django-ListView 是从object_list 中取model, 而不是取view.model
+                object_list 如果不是QuerySet, 生成不了model_template, 所以本函数重新处理.
+                '''
+                try:
+                    templates = super().get_template_names()
+                except Exception:
+                    # traceback.print_exc()  # django 2.*
+                    templates = []
+
+                model_template = f'{ops.app_label}/{ops.model_name}{self.template_name_suffix}.html'
+                generic_template = f'generic/{self.template_name_suffix}.html'
+
+                logger.debug(f'\r\nmodel_template: {model_template} \r\ngeneric_template: {generic_template}')
+                # 优先使用自定义模板 model_template
+                if model_template not in templates:
+                    templates.append(model_template)
+
+                if generic_template not in templates:
+                    templates.append(generic_template)
+
+                return templates
+            cls.get_template_names = get_template_names
+
+        if not cls.permission_required:
+            # 自动设置权限代码
+            if issubclass(cls, CreateView):
+                action = 'add'  # 增
+            elif issubclass(cls, MyDeleteView):
+                action = 'delete'  # 删
+            elif issubclass(cls, UpdateView):
+                action = 'change'  # 改
+            else:
+                action = 'view'  # 查
+
+            cls.permission_required = f'{ops.app_label}.{action}_{ops.model_name}'
+            # print(cls, cls.permission_required, 77777)
+        # if issubclass(cls, (CreateView, UpdateView)) and not cls.success_url:
+        #     # 新增/编辑, 完成后跳转URL
+        #     cls.success_url = reverse_lazy(f'{ops.app_label}:{ops.model_name}_list')
+
+        view = super().as_view(*a, **k)
+        return view
+
+
+class MyModelFormMixin(ModelMixin):
 
     # def get_form_class(self):
     #     if self.form_class is None and self.fields is None:
@@ -54,7 +124,7 @@ class MyUpdateView(MyModelFormMixin, UpdateView):
     1
 
 
-class MyDeleteView(View):
+class MyDeleteView(ModelMixin, View):
     '''批量删除model表数据'''
     model = None
 
@@ -86,6 +156,10 @@ class MyDeleteView(View):
 
 #     def get_permission_required(self):
 #         method = self.request.method  # 根据method返回相应权限
+
+
+class MyListView(ModelMixin, listview.VirtualRelation, listview.SqlListView):
+    1
 
 
 def lookup_val(obj, field_info):
@@ -169,7 +243,7 @@ def display_qs(qs):
     return format_html('<br/>'.join([str(obj) for obj in qs]))
 
 
-class MyDetailView(DetailView):
+class MyDetailView(ModelMixin, DetailView):
     # template_name = "generic/_detail.html"
 
     def get_context_data(self, **kwargs):
@@ -182,74 +256,10 @@ class MyDetailView(DetailView):
         return context
 
 
-class ModelMixin(LoginRequiredMixin, PermissionRequiredMixin):
-    '''
-    由于不想在MyListView/MyDetailView等视图中分别重写as_view(), 所以统一在当前重写.
-    多重继承时注意顺序, python中越往右为越远的基类祖先, 和VUE中继承顺序书写相反.
-    '''
-    model = None
-    queryset = None
-
-    @classmethod
-    def as_view(cls, *a, **k):
-        if not cls.model and not cls.queryset:
-            raise Exception(f'{cls}: Model View ??')
-
-        model = cls.model or cls.queryset.model
-        ops = model._meta
-        cls.model_meta = ops  # 由于模板中禁止访问"_"开头的属性.
-
-        if hasattr(cls, 'get_template_names'):
-            # 自动设置模板页
-            def get_template_names(self):
-                '''
-                django-ListView 是从object_list 中取model, 而不是取view.model
-                object_list 如果不是QuerySet, 生成不了model_template, 所以本函数重新处理.
-                '''
-                try:
-                    templates = super().get_template_names()
-                except Exception:
-                    # traceback.print_exc()  # django 2.*
-                    templates = []
-
-                model_template = f'{ops.app_label}/{ops.model_name}{self.template_name_suffix}.html'
-                generic_template = f'generic/{self.template_name_suffix}.html'
-
-                logger.debug(f'\r\nmodel_template: {model_template} \r\ngeneric_template: {generic_template}')
-                # 优先使用自定义模板 model_template
-                if model_template not in templates:
-                    templates.append(model_template)
-
-                if generic_template not in templates:
-                    templates.append(generic_template)
-
-                return templates
-            cls.get_template_names = get_template_names
-
-        if not cls.permission_required:
-            # 自动设置权限代码
-            if isinstance(cls, CreateView):
-                action = 'add'  # 增
-            elif isinstance(cls, MyDeleteView):
-                action = 'delete'  # 删
-            elif isinstance(cls, UpdateView):
-                action = 'change'  # 改
-            else:
-                action = 'view'  # 查
-
-            cls.permission_required = f'{ops.app_label}.{action}_{ops.model_name}'
-            # print(cls, cls.permission_required, 77777)
-        # if issubclass(cls, (CreateView, UpdateView)) and not cls.success_url:
-        #     # 新增/编辑, 完成后跳转URL
-        #     cls.success_url = reverse_lazy(f'{ops.app_label}:{ops.model_name}_list')
-
-        return super().as_view(*a, **k)
-
-
 '''
 # 使用示例:
 
-class XxxMixin(views.ModelMixin):
+class XxxMixin:
     model = models.Xxx
 
 

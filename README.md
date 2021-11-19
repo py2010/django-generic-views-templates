@@ -119,5 +119,28 @@ add_router_for_all_models()
 
 '''
 
+
+'''
+# 模板 (虚拟关联)
+
+{% extends "generic/_list.html" %}
+    {% block add_table_th %}
+                                    <th>两表 x2o 虚拟关联xx字段名称</th> <!-- 正向, 对应一条 -->
+                                    <th>两表 o2x 虚拟关联xx字段名称</th> <!-- 反向, 对应多条 -->
+                                    <th>三表 m2m 虚拟关联xx字段名称</th> <!-- 正反 多对多 -->
+    {% endblock %}
+
+    {% block add_table_td %}
+                                    <td>{{ object.attr.xx_field }}</td>
+                                    <td>
+                                        {% for o in object.attr %}{{ o.xx_field }}</br>{% endfor %}
+                                    </td>
+                                    <td>
+                                        {% for o in object.attr_m %}{{ o.attr_2.xx_field }}</br>{% endfor %}
+                                    </td>
+    {% endblock %}
+'''
+
+
 ```
 

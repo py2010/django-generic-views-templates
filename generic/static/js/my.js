@@ -52,7 +52,11 @@ function DeleteObj(that, id, url) {
                     } else {
                         swal('删除出错', res.error, "error");
                     }
-                }
+                },
+                error: function(error){
+                    console.log(error)
+                    swal('删除失败', "HTTP: " + error.status, "error");
+                },
 
             })
 

@@ -14,7 +14,8 @@
     {% add model_view "_detail" as model_view_detail %}
     {% add model_view "_update" as model_view_update %}
     {% add model_view "_delete" as model_view_delete %}
-    {% url model_view_delete as objects_delete_url %}
+
+    {% if model_perms.delete %}{% url model_view_delete as objects_delete_url %}{% endif %}
 
     <div class="row wrapper border-bottom white-bg page-heading">
         <div class="col-lg-10">
@@ -39,19 +40,26 @@
                 <div class="ibox-title">
                     <h5>数据列表</h5>
                     <div class="ibox-tools">
+                        {% if not view.js_table_data %}
                         <select class="input-sm" id="select_pagesize">
-                            <option value="">每页显示{{ view.paginate_by }}条</option>
+
+                            <option value="">
+                                {% if view.paginate_by %}每页显示{{ view.paginate_by }}条{% else %}显示所有{% endif %}
+                            </option>
+
                             {% for size in view.page_size_list %}
                                 {% if size != view.paginate_by %}
                                 <option value="{{ size }}">{{ size }}</option>
                                 {% endif %}
                             {% endfor %}
                         </select>&nbsp;&nbsp;
+                        {% endif %}
                     </div>
                 </div>
                 <div class="ibox-content">
 
-                    <div class="table-responsive">{% url model_view_create as obj_create_url %}
+                    <div class="table-responsive">
+                        {% if model_perms.create %}{% url model_view_create as obj_create_url %}{% endif %}
 
                         <div class="col-md-4">
                             {% if obj_create_url %}<a href="{{ obj_create_url }}" class="btn btn-primary">添加</a>{% endif %}
@@ -98,8 +106,8 @@
                                 <tbody>
 
                                 {% for object in object_list %}
-                                    {% url model_view_detail object.pk as obj_detail_url %}
-                                    {% url model_view_update object.pk as obj_update_url %}
+                                    {% if model_perms.detail %}{% url model_view_detail object.pk as obj_detail_url %}{% endif %}
+                                    {% if model_perms.update %}{% url model_view_update object.pk as obj_update_url %}{% endif %}
                                     <tr id="{{ object.pk }}">
                                         {% if objects_delete_url %}<td><input type="checkbox" value="{{ object.pk }}"  name="id"></td>{% endif %}
 
@@ -143,26 +151,31 @@
                             {% if request.GET.s %}
                                 {% add "s=" request.GET.s as s %}
                             {% endif %}
-                            {% firstof url_args|join:"&" or s as url_args %}
+                            {% if url_args %}{% firstof url_args|join:"&" or s as url_args %}{% endif %}
                             {% firstof view.page_kwarg 'page' as page %}
 
                         <ul class="pagination pull-right">
                             {% if page_obj.has_previous %}
-                            <li><a href="?&{{ url_args }}">«</a></li>
-                            <li><a href="?{{ page }}={{ page_obj.previous_page_number }}&{{ url_args }}">‹</a></li>
+                                <li><a href="?&{{ url_args }}" title="第一页">«</a></li>
+                                <li><a href="?{{ page }}={{ page_obj.previous_page_number }}&{{ url_args }}" title="上一页">‹</a></li>
                             {% endif %}
 
-                            {% for p in page_obj.paginator.page_range %}
-                            {% if page_obj.number == p %}
-                            <li><a>{{ p }}</a></li>
-                            {% else %}
-                            <li><a href="?{{ page }}={{ p }}&{{ url_args }}">{{ p }}</a></li>
-                            {% endif %}
+                            {% for p in page_range %}
+                                {% if page_obj.number == p %}
+                                <li class="active"><span>{{ p }}</span></li>
+                                {% else %}
+                                <li><a href="?{{ page }}={{ p }}&{{ url_args }}">{{ p }}</a></li>
+                                {% endif %}
                             {% endfor %}
 
                             {% if page_obj.has_next %}
-                            <li><a href="?{{ page }}={{ page_obj.next_page_number }}&{{ url_args }}">›</a></li>
-                            <li><a href="?{{ page }}=last&{{ url_args }}">»</a></li>
+                                <li><a href="?{{ page }}={{ page_obj.next_page_number }}&{{ url_args }}" title="下一页">›</a></li>
+                                {% if paginator.num_pages < 200 %}
+                                <li><a href="?{{ page }}=last&{{ url_args }}" title="最末页">»</a></li>
+                                {% else %}
+                                <!-- 普通分页SQL偏移查询方式(LIMIT/OFFSET)对超大数据支持不好，应改用游标分页 -->
+                                {% endif %}
+                                <li><span>共{{ paginator.num_pages }}页 {{ paginator.count }}条</span></li>
                             {% endif %}
                         </ul>
                         {% endif %}

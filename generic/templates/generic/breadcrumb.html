@@ -1,0 +1,17 @@
+
+{% load tags %}
+
+            <ol class="breadcrumb">
+                <li>{% url 'index' as index %}
+                    <a href="{% firstof index '/' %}">主页</a>
+                </li>
+                <li>
+                    {% add request.resolver_match.view_name|slice:":-7" "_list" as model_view_list %}
+                    {% url model_view_list as object_list_url %}
+                    <a href="{% firstof object_list_url '../' %}">{{ view.model_meta.verbose_name }}</a>
+                </li>
+                <li class="active">
+                    <strong>{% firstof object '新增' %}</strong>
+                </li>
+            </ol>
+

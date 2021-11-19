@@ -10,17 +10,7 @@
     <div class="row wrapper border-bottom white-bg page-heading">
         <div class="col-lg-10">
             <h2>信息浏览</h2>
-            <ol class="breadcrumb">
-                <li>{% url 'index' as index %}
-                    <a href="{% firstof index '/' %}">主页</a>
-                </li>
-                <li>
-                    <a href="../">{{ view.model_meta.verbose_name }}</a>
-                </li>
-                <li class="active">
-                    <strong>{{ object }}</strong>
-                </li>
-            </ol>
+            {% include "generic/breadcrumb.html" %}
         </div>
         <div class="col-lg-2">
         </div>
