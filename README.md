@@ -2,10 +2,13 @@
 django通用视图模板 (low-code)
 
 最新代码在示例中
-[/py2010/example/tree/main/apps/generic](/py2010/example/tree/main/apps/generic)
+
+[https://github.com/py2010/example/tree/main/apps/generic](https://github.com/py2010/example/tree/main/apps/generic)
 
 示例
+
 https://github.com/py2010/example/
+
 https://gitee.com/py2010/example/
 
 
