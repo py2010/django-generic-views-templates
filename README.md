@@ -14,6 +14,12 @@ django通用视图模板 (low-code)
         所以通常只适合在小项目中用用, 大项目则都是使用django的Views自定义开发,
         本APP可放入各django项目中, 对于增删改查等常用功能, 减少体力活.
 
+* 使用:
+
+        1. 将APP (generic) 放入自己的django项目中
+        2. generic/templates/generic/目录下4个html为inspinia_admin前端, 修改为和你们网站一致的组织/风格样式
+        3. 查看我的示例项目, 在自己django项目中配置使用.
+
 最新代码在示例中
 
 [https://github.com/py2010/example/tree/main/apps/generic](https://github.com/py2010/example/tree/main/apps/generic)
