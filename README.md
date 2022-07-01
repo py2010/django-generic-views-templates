@@ -1,6 +1,19 @@
 # django-generic-views-templates
 django通用视图模板 (low-code)
 
+* 功能:
+
+        我们在开发网站时, 经常碰到要实现对一些数据库表进行增删改查的功能, 模型需配置urls, 配置模板等,
+        配置增删改查的Views, 大家平时开发任何新网站或增加新模块功能, 都要做很多这种复制粘贴的重复劳动.
+        这时就可利用本APP进行简单配置实现各种常见功能.
+
+        django自带的admin也可简单配置便能实现增删改查, 和后来CBV类视图是二套独立的程序,
+        且admin大多十几年以前的代码, 无论前端还是后端py代码, 和我们开发的网站整合麻烦.
+        除非是纯用admin功能简单, 如果某些页面要增加复杂功能, 改起来就繁琐一堆体力活. 
+        也没有generic通用视图设计的合理便于维护和扩展功能, 二套东西堆积一起感觉比较乱.
+        所以通常只适合在小项目中用用, 大项目则都是使用django的Views自定义开发,
+        本APP可放入各django项目中, 对于增删改查等常用功能, 减少体力活.
+
 最新代码在示例中
 
 [https://github.com/py2010/example/tree/main/apps/generic](https://github.com/py2010/example/tree/main/apps/generic)
@@ -125,28 +138,4 @@ add_router_for_all_models()
 
 '''
 
-
-'''
-# 模板 (虚拟关联)
-
-{% extends "generic/_list.html" %}
-    {% block add_table_th %}
-                                    <th>两表 x2o 虚拟关联xx字段名称</th> <!-- 正向, 对应一条 -->
-                                    <th>两表 o2x 虚拟关联xx字段名称</th> <!-- 反向, 对应多条 -->
-                                    <th>三表 m2m 虚拟关联xx字段名称</th> <!-- 正反 多对多 -->
-    {% endblock %}
-
-    {% block add_table_td %}
-                                    <td>{{ object.attr.xx_field }}</td>
-                                    <td>
-                                        {% for o in object.attr %}{{ o.xx_field }}</br>{% endfor %}
-                                    </td>
-                                    <td>
-                                        {% for o in object.attr_m %}{{ o.attr_2.xx_field }}</br>{% endfor %}
-                                    </td>
-    {% endblock %}
-'''
-
-
-```
 
